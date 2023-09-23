@@ -129,6 +129,35 @@ def delete_tweet(request):
 
         tweet.delete()
 
-        return HttpResponse("Tweet deleted successfully.", status=204)  # 204 No Content
+        return HttpResponse("Tweet deleted successfully.", status=204)
+    except Exception as e:
+        return HttpResponse(f"An error occurred: {str(e)}", status=500)
+    
+#****************************************************************
+#Getting/Reteriving TWEET with Filter
+def retrieve_tweets_with_filters(request):
+    try:
+
+        title = request.GET.get("title")
+        username = request.GET.get("username")
+
+        queryset = Tweet.objects.all()
+
+        if title:
+            queryset = queryset.filter(title__icontains=title)
+        if username:
+            queryset = queryset.filter(user__username=username)
+
+        tweets = queryset.values(
+            "id",
+            "title",
+            "content",
+            "created_at",
+            "user__username"
+        )
+
+        tweet_data = list(tweets)
+
+        return JsonResponse(tweet_data, safe=False)
     except Exception as e:
         return HttpResponse(f"An error occurred: {str(e)}", status=500)
