@@ -10,3 +10,11 @@ class User(AbstractUser):
     USERNAME_FIELD = 'username'
     EMAIL_FIELD = 'email'
     REQUIRED_FIELDS = ['email']
+    
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    bio = models.TextField(blank=True)
+    name = models.CharField(max_length=30)
+    phone_no = models.CharField(max_length=15, blank=True)
+    address = models.TextField(blank=True)
+    email = models.EmailField()

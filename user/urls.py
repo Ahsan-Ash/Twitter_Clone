@@ -6,4 +6,9 @@ urlpatterns = [
     path('retrieve_user/', views.retrieve_user, name='retrieve_user'),
     path('update_user/', views.update_user, name='update_user'),
     path('delete_user/', views.delete_user, name='delete_user'),
+    
+    #User_Profile
+    path('update_user_profile/', views.update_user_profile, name='update_user_profile'),
+    path('retrieve_user_profile/', views.retrieve_user_profile, name='retrieve_user_profile'),
+    
 ]
