@@ -4,7 +4,9 @@ from .models import User, UserProfile
 import json
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
-from .forms import UserCreationForm
+from .forms import UserForm, UserProfileForm
+from django.contrib.auth import get_user_model
+
 # Create your views here.
 
 #************************Create User****************************
@@ -13,23 +15,22 @@ from .forms import UserCreationForm
 def create_user(request):
     try:
         if request.method == "POST":
-            form = UserCreationForm(request.POST)
-            if form.is_valid():
-                user = form.save()
-                response_data = {
-                    "message": f"User {user.username} created successfully.",
-                    "User_ID": user.id,
-                    "Name": user.name,
-                    "Email": user.email,
-                }
-                return JsonResponse(response_data, status=201)  # 201 Created
-            else:
-                return HttpResponse("Invalid form data.", status=400)
-        elif request.method == "GET":
-            form = UserCreationForm()
-            return render(request, 'user/create_user_form.html', {'form': form})
+            
+            username = request.GET.get("username")
+            email = request.GET.get("email")
+            password = request.GET.get("password")
+
+            User = get_user_model()
+            user = User.objects.create_user(username=username, email=email, password=password)
+            response_data = {
+                "message": f"User {user.username} created successfully.",
+                "User_ID": user.id,
+                "Name": user.name,
+                "Email": user.email,                
+            }
+            return JsonResponse(response_data, status=201)  # 201 Created
         else:
-            return HttpResponse("Method Not Allowed", status=405)
+            return HttpResponse("Invalid form data.", status=400)
     except Exception as e:
         return HttpResponse(f"An error occurred: {str(e)}", status=500)
 
@@ -40,21 +41,13 @@ def retrieve_user(request):
     try:
         
         username = request.GET.get("username")
-
-        
-        if not username:
-            return HttpResponse("Username is required.", status=400)
-
         users = User.objects.filter(username=username)
-
-        if not users.exists():
-            return HttpResponse("User not found.", status=404)
 
         user_data = []
         for user in users:
             user_info = {
                 "User_ID": user.id,
-                "Name": user.name,
+                "Username": user.username,
                 "Email": user.email,
             }
             user_data.append(user_info)
@@ -73,13 +66,7 @@ def update_user(request):
         name = request.GET.get("name")
         email = request.GET.get("email")
 
-        if not user_id:
-            return HttpResponse("User ID is required.", status=400)
-
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return HttpResponse("User not found.", status=404)
+        user = User.objects.get(id=user_id)
 
         if name:
             user.name = name
@@ -108,18 +95,18 @@ def delete_user(request):
         user_id = request.GET.get("user_id")
 
         if not user_id:
-            return HttpResponse("User ID is required.", status=400)
+            return JsonResponse({"error": "User ID is required."}, status=400)
 
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return HttpResponse("User not found.", status=404)
+            return JsonResponse({"error": "User not found."}, status=404)
 
         user.delete()
 
-        return HttpResponse("User deleted successfully.", status=204)
+        return JsonResponse({"error": "User deleted successfully."}, status=204)
     except Exception as e:
-        return HttpResponse(f"An error occurred: {str(e)}", status=500)
+        return JsonResponse({"error": f"An error occurred: {str(e)}"}, status=500)
     
     
     
@@ -129,29 +116,27 @@ def delete_user(request):
 def update_user_profile(request):
     if request.method == "POST":
         try:
-            user = request.user 
-            bio = request.POST.get("bio")
-            name = request.POST.get("name")
-            phone_no = request.POST.get("phone_no")
-            address = request.POST.get("address")
-            email = request.POST.get("email")
+            data = json.loads(request.body.decode('utf-8'))
 
-            if not user:
-                return HttpResponse("User not found.", status=404)
+            user_id = data["user_id"]
+            bio = data["bio"]
+            name = data["name"]
+            phone_no = data["phone_no"]
+            address = data["address"]
+            email = data["email"]
 
-            user_profile, created = UserProfile.objects.get_or_create(user=user)
-            user_profile.bio = bio
-            user_profile.name = name
-            user_profile.phone_no = phone_no
-            user_profile.address = address
-            user_profile.email = email
-            user_profile.save()
+            user = get_object_or_404(User, id=user_id)
+        
+            create_user_profile = UserProfile.objects.create(user=user, bio=bio, name=name, phone_no=phone_no, address=address, email=email)
+            create_user_profile.save()
 
-            return JsonResponse({"message": "User profile updated successfully."}, status=200)
+            return JsonResponse({"message": "User profile created successfully."}, status=200)
         except Exception as e:
             return HttpResponse(f"An error occurred: {str(e)}", status=500)
     else:
         return HttpResponse("Method Not Allowed", status=405)
+    
+#Get UserProfile
     
 def retrieve_user_profile(request):
     username = request.GET.get("username")
@@ -170,3 +155,48 @@ def retrieve_user_profile(request):
     }
 
     return JsonResponse(response_data, status=200)
+
+#****************************Create User Form*************************
+
+
+def createForm(request):
+    if request.method == "GET":
+        form = UserForm()
+        return render(request,"user/create_user.html",{"form":form})
+
+    if request.method == "POST":
+        form = UserForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            name = form.cleaned_data['name']
+            email = form.cleaned_data['email']
+            
+            new_user = User(username=username , name=name, email=email )
+            new_user.save()
+            return HttpResponse(f"{username}, User created successfully!")
+        else:    
+            return render(request,"user/create_user.html",{"form":form})
+        
+#****************************cREATE User Profile through Form*************************
+def user_profile_form(request):
+    if request.method == "GET":
+        form = UserProfileForm()
+        return render(request,"user/userprofile.html",{"form":form})
+
+    if request.method == "POST":
+        form = UserProfileForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data["username"]
+            bio = form.cleaned_data["bio"]
+            name = form.cleaned_data["name"]
+            phone_no = form.cleaned_data["phone_no"]
+            address = form.cleaned_data["address"]
+            email = form.cleaned_data["email"]
+            
+            user = User.objects.get(username=username)
+
+            create_user_profile = UserProfile(user=user, bio=bio, name=name, phone_no=phone_no, address=address, email=email)
+            create_user_profile.save()
+            return HttpResponse(f" User Profile updated successfully!")
+        else:    
+            return render(request,"user/userprofile.html",{"form":form})

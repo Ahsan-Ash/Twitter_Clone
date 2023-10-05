@@ -1,60 +1,45 @@
-from django.shortcuts import render,redirect
+from django.shortcuts import render,redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from .models import Tweet, Comment
 from user.models import User
 import json
 from django.core.exceptions import ObjectDoesNotExist
 from django.views.decorators.csrf import csrf_exempt
-from .forms import TweetForm
+from .forms import TweetForm, TweetShareForm
 
 # Create your views here.
 
 #Creating TWEET
+
 @csrf_exempt
 def create_tweet(request):
-    if request.method == "POST":
-        try:
-            form = TweetForm(request.POST)
-            if form.is_valid():
-                user_id = form.cleaned_data['user_id']
-                title = form.cleaned_data['title']
-                content = form.cleaned_data['content']
+    try:
+        user_id = request.GET.get('user_id')
+        title = request.GET.get('title')
+        content = request.GET.get('content')
 
-                user = User.objects.get(id=user_id)
+        user = User.objects.get(id=user_id)
+        
+        new_tweet = Tweet(title=title, content=content, user=user)
+        new_tweet.save()
 
-                tweet = Tweet.objects.create(user=user, title=title, content=content)
-
-                response = {
-                    "status": "success",
-                    "message": f"The tweet by {user.username} was created successfully.",
-                    "Tweet_title": tweet.title,
-                    "Tweet_content": tweet.content
-                }
-
-                return redirect('create_tweet')
-
-            return HttpResponse("Form data is invalid.", status=400)
-
-        except Exception as e:
-            return HttpResponse(f"An error occurred: {str(e)}", status=500)
-
-    else:
-        form = TweetForm()
-        return render(request, 'tweet/create_tweet.html', {'form': form})
-
+        response = {
+            "message": "Tweet created",
+        }
+        return JsonResponse(response)
+    except json.JSONDecodeError as e:
+        return JsonResponse({"error": "Invalid JSON data"}, status=400)
 #****************************************************************
 #Getting/Reteriving TWEET
 def retrieve_tweet(request):
     try:
-        
         user_id = request.GET.get("user_id")
         tweet_id = request.GET.get("tweet_id")
 
         queryset = Tweet.objects.all()
 
         if user_id:
-            queryset = queryset.filter(user_id=user_id)
-
+            queryset = queryset.filter(user__id=user_id)
         if tweet_id:
             queryset = queryset.filter(id=tweet_id)
 
@@ -83,13 +68,7 @@ def update_tweet(request):
             title = request.GET.get("title")
             content = request.GET.get("content")
             
-            if not tweet_id:
-                return HttpResponse("Tweet ID is required.", status=400)
-                
-            try:
-                tweet = Tweet.objects.get(id=tweet_id)
-            except ObjectDoesNotExist:
-                return HttpResponse("Tweet not found.", status=404)
+            tweet = Tweet.objects.get(id=tweet_id)
                 
             if title:
                 tweet.title = title
@@ -116,14 +95,7 @@ def delete_tweet(request):
     try:
         tweet_id = request.GET.get("tweet_id")
 
-        if not tweet_id:
-            return HttpResponse("Tweet ID is required.", status=400)
-
-        try:
-            tweet = Tweet.objects.get(id=tweet_id)
-        except ObjectDoesNotExist:
-            return HttpResponse("Tweet not found.", status=404)
-
+        tweet = Tweet.objects.get(id=tweet_id)
         tweet.delete()
 
         return HttpResponse("Tweet deleted successfully.", status=204)
@@ -167,23 +139,13 @@ def retrieve_tweets_with_filters(request):
 def create_comment(request):
     if request.method == "POST":
         try:
-            user_id = request.POST.get("user_id")
-            tweet_id = request.POST.get("tweet_id")
-            content = request.POST.get("content")
-            
-            if not user_id or not tweet_id or not content:
-                return HttpResponse("Missing required data in the request.", status=400)
+            user_id = request.GET.get("user_id")
+            tweet_id = request.GET.get("tweet_id")
+            content = request.GET.get("content")
 
-            try:
-                user = User.objects.get(id=user_id)
-            except ObjectDoesNotExist:
-                return HttpResponse("User does not exist.", status=404)
-
-            try:
-                tweet = Tweet.objects.get(id=tweet_id)
-            except ObjectDoesNotExist:
-                return HttpResponse("Tweet does not exist.", status=404)
-
+            user = User.objects.get(id=user_id)
+            tweet = Tweet.objects.get(id=tweet_id)
+ 
             comment = Comment.objects.create(user=user, tweet=tweet, content=content)
 
             response = {
@@ -192,7 +154,7 @@ def create_comment(request):
             }
 
             return JsonResponse(response, status=201)
-        
+
         except Exception as e:
             return HttpResponse(f"An error occurred: {str(e)}", status=500)
 
@@ -203,17 +165,9 @@ def create_comment(request):
 def retrieve_comments(request):
     try:
         tweet_id = request.GET.get("tweet_id")
-
-        if not tweet_id:
-            return HttpResponse("Tweet ID is required.", status=400)
-
-        try:
-            tweet = Tweet.objects.get(id=tweet_id)
-        except ObjectDoesNotExist:
-            return HttpResponse("Tweet not found.", status=404)
+        tweet = Tweet.objects.get(id=tweet_id)
 
         comments = Comment.objects.filter(tweet=tweet)
-
         comment_data = []
 
         for comment in comments:
@@ -227,3 +181,50 @@ def retrieve_comments(request):
 
     except Exception as e:
         return HttpResponse(f"An error occurred: {str(e)}", status=500)
+
+
+def createForm(request):
+    if request.method == "GET":
+        form = TweetForm()
+        return render(request,"tweet/create_tweet.html",{"form":form})
+
+    if request.method == "POST":
+        form = TweetForm(request.POST)
+        if form.is_valid():
+            title = form.cleaned_data['title']
+            content = form.cleaned_data['content']
+            user_id = form.cleaned_data['user_id']
+            user = User.objects.get(id=user_id)
+            new_tweet = Tweet(title=title , content=content, user=user )
+            new_tweet.save()
+            return HttpResponse(f"{user.username}, Tweet {title} created successfully!")
+        else:    
+            return render(request,"tweet/create_tweet.html",{"form":form})
+        
+
+        
+def shareTweet(request):
+    if request.method == "GET":
+        form = TweetShareForm()
+        return render(request,"tweet/tweet_share.html",{"form":form})
+    
+    if request.method =="POST":
+        form = TweetShareForm(request.POST)
+        if form.is_valid():
+            title = form.cleaned_data['title']
+            user_id = form.cleaned_data['user_id']
+            # username = form.cleaned_data['username']
+
+            tweet = Tweet.objects.get(title=title)
+            # user = User.objects.get(username=username)
+            user = get_object_or_404(User, pk=user_id)
+            all_tweets = user.shared_tweets.all()
+            if tweet in all_tweets:
+                return HttpResponse(f'Tweet {tweet.title}already shared')
+            else:
+                share = user.shared_tweets.add(tweet)
+                return HttpResponse(f"Tweet {tweet.title} shared Successfully.")
+        else:    
+            return render(request,"tweet/tweet_share.html",{"form":form})
+        
+        

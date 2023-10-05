@@ -10,5 +10,9 @@ urlpatterns = [
     #User_Profile
     path('update_user_profile/', views.update_user_profile, name='update_user_profile'),
     path('retrieve_user_profile/', views.retrieve_user_profile, name='retrieve_user_profile'),
+
+    #Form
+    path("createForm/",views.createForm,name="createForm"),
+    path("user_profile_form/",views.user_profile_form, name="user_profile_form")
     
 ]
